@@ -1,10 +1,10 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
-const char* WIFI_SSID = "刘铭昊的iPhone (2)";
-const char* WIFI_PASSWORD = "liuminghao";
+const char* WIFI_SSID = "XXXXXXXX";
+const char* WIFI_PASSWORD = "XXXXXXXX";
 
-const char* PI_IP = "192.168.137.222";
+const char* PI_IP = "XXX.XXX.XXX.XXX";
 const int PI_PORT = 5005;
 
 WiFiUDP udp;
