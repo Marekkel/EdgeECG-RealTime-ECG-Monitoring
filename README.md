@@ -5,22 +5,26 @@ EdgeECG is a real-time ECG monitoring and arrhythmia detection project designed 
 This repository includes:
 
 - Colab training notebooks for binary and multi-class ECG classification.
-- A trained INT8 TensorFlow Lite model.
+- Trained INT8 TensorFlow Lite models for binary and multi-class deployment.
 - Edge-side TFLite inference and benchmark scripts.
 - An ESP32 UDP sender example for streaming ECG samples to a Raspberry Pi.
 - A utility for converting WiFi-captured CSV ECG data into WFDB format.
 - A multi-class AAMI-style classification workflow with compression comparison analysis.
+- Raspberry Pi evaluation data and scripts, including a balanced stress-test set for rare classes.
 
 ## Repository Structure
 
 ```text
 .
 ├── README.md
+├── SP26_Embedded_AI_Final_Project_Guidelines.docx
 ├── binaryClassification
 │   ├── model
-│   │   └── ecg_1dcnn_pruned_int8.tflite
+│   │   └── ecg_1dcnn_pruned_int8_binary.tflite
 │   ├── send_data_to_Pi
 │   │   └── send_data_to_Pi.ino
+│   ├── synthetic_mitbih
+│   │   └── README.md
 │   └── src
 │       ├── benchmark_ecg_tflite.py
 │       ├── convert_wifi_csv_to_wfdb.py
@@ -28,19 +32,32 @@ This repository includes:
 │       ├── run_ecg_tflite.py
 │       └── udp_ecg_receiver.py
 └── multiClassification
-    └── ecg_multiclass_quant_pruning.ipynb
+    ├── model
+    │   └── ecg_1dcnn_pruned_int8.tflite
+    ├── pi_eval_dataset
+    │   ├── X_test.npy
+    │   ├── X_stress.npy
+    │   ├── y_test.npy
+    │   ├── y_stress.npy
+    │   └── class_names.txt
+    └── src
+        ├── capture_stress_data.py
+        ├── ecg_multiclass_quant_pruning.ipynb
+        ├── ecg_multiclass_quant_pruning_da.ipynb
+        └── evaluate_tflite.py
 ```
 
 ## Project Overview
 
-The repository now contains two Colab training workflows:
+The repository now contains three Colab notebooks across two training workflows:
 
 ```text
 binaryClassification/src/ecg_edge_arrhythmia_starter.ipynb
-multiClassification/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning_da.ipynb
 ```
 
-Both notebooks are intended to be run on Google Colab. The binary notebook trains a normal-vs-arrhythmia classifier, while the multi-class notebook trains an AAMI-style 5-class classifier.
+These notebooks are intended to be run on Google Colab. The binary notebook trains a normal-vs-arrhythmia classifier. The standard multi-class notebook trains an AAMI-style 5-class classifier, and the `_da` multi-class notebook adds training-only data augmentation for rare classes.
 
 The shared training flow is:
 
@@ -77,7 +94,8 @@ Open one of the notebooks below in Google Colab:
 
 ```text
 binaryClassification/src/ecg_edge_arrhythmia_starter.ipynb
-multiClassification/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning_da.ipynb
 ```
 
 Install dependencies in a fresh Colab runtime:
@@ -109,7 +127,8 @@ benchmark_results.csv
 Copy the exported TFLite model into this repository:
 
 ```text
-binaryClassification/model/ecg_1dcnn_pruned_int8.tflite
+binaryClassification/model/ecg_1dcnn_pruned_int8_binary.tflite
+multiClassification/model/ecg_1dcnn_pruned_int8.tflite
 ```
 
 ## Binary Model Results
@@ -125,7 +144,7 @@ The following results come from one Colab run of the current notebook. They may 
 The deployment model currently stored in this repository is:
 
 ```text
-binaryClassification/model/ecg_1dcnn_pruned_int8.tflite
+binaryClassification/model/ecg_1dcnn_pruned_int8_binary.tflite
 ```
 
 ## Multi-Class Classification
@@ -133,7 +152,8 @@ binaryClassification/model/ecg_1dcnn_pruned_int8.tflite
 The multi-class notebook adds AAMI-style arrhythmia classification:
 
 ```text
-multiClassification/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning_da.ipynb
 ```
 
 It maps MIT-BIH beat annotations into five classes:
@@ -146,7 +166,9 @@ It maps MIT-BIH beat annotations into five classes:
 | F | Fusion beats | `F` |
 | Q | Unknown, paced, or other beats | `/`, `f`, `Q` |
 
-The notebook uses the same 256-sample beat window format and the same baseline/pruning/INT8 export structure as the binary workflow.
+Both multi-class notebooks use the same 256-sample beat window format and the same baseline/pruning/INT8 export structure as the binary workflow.
+
+The `_da` notebook adds training-only augmentation for rare classes `S`, `V`, and `F`. It augments only `X_train` and `y_train` after the train/validation/test split, keeping validation and test sets untouched. The augmentation applies amplitude scaling, small temporal shifts, Gaussian noise, and baseline wander before z-score normalization.
 
 ### Multi-Class Model Results
 
@@ -166,6 +188,89 @@ The notebook also computes compression trade-offs relative to the baseline:
 | Pruned + INT8 TFLite | 88.74% | 99.89% faster | 20.48% |
 
 The multi-class task is more sensitive to quantization than the binary task, especially because minority classes such as `S` and `F` have very few samples in the current record subset. For stronger multi-class results, expand the MIT-BIH record list and use a more balanced split or class reweighting.
+
+### Multi-Class Data Augmentation Results
+
+The following values come from one Colab run of `ecg_multiclass_quant_pruning_da.ipynb`:
+
+| Model | Accuracy | Size | Latency |
+| --- | ---: | ---: | ---: |
+| Baseline FP32 1D-CNN | 0.9938 | 221.42 KB | 74.589 ms/sample |
+| Pruned 1D-CNN | 0.9933 | 87.84 KB | 56.776 ms/sample |
+| Pruned + INT8 TFLite | 0.7325 | 24.94 KB | 0.068 ms/sample |
+
+Compression trade-offs relative to the augmented baseline:
+
+| Model | Size Reduction | Latency Change | Accuracy Drop |
+| --- | ---: | ---: | ---: |
+| Pruned 1D-CNN | 60.33% | 23.88% faster | 0.05% |
+| Pruned + INT8 TFLite | 88.74% | 99.91% faster | 26.13% |
+
+The augmented FP32 and pruned Keras models improve minority-class behavior compared with the non-augmented notebook, but the INT8 model still shows a larger accuracy drop after quantization.
+
+## Raspberry Pi Multi-Class Evaluation
+
+The repository includes a ready-to-copy evaluation dataset for Raspberry Pi:
+
+```text
+multiClassification/pi_eval_dataset/X_test.npy
+multiClassification/pi_eval_dataset/y_test.npy
+multiClassification/pi_eval_dataset/X_stress.npy
+multiClassification/pi_eval_dataset/y_stress.npy
+multiClassification/pi_eval_dataset/class_names.txt
+```
+
+Dataset shapes:
+
+| File | Shape | Dtype |
+| --- | --- | --- |
+| `X_test.npy` | `(4332, 256, 1)` | `float32` |
+| `y_test.npy` | `(4332,)` | `int32` |
+| `X_stress.npy` | `(438, 256, 1)` | `float32` |
+| `y_stress.npy` | `(438,)` | `int32` |
+
+Class order is stored in `class_names.txt`:
+
+```text
+N
+S
+V
+F
+Q
+```
+
+The stress set is built from all rare-class samples (`S`, `V`, `F`) plus a matched number of `N` and `Q` samples. This creates a harder evaluation set than the original imbalanced test split.
+
+To prepare the Raspberry Pi layout expected by the scripts:
+
+```bash
+mkdir -p /home/icsl/model /home/icsl/pi_eval_dataset
+cp multiClassification/model/ecg_1dcnn_pruned_int8.tflite /home/icsl/model/
+cp multiClassification/pi_eval_dataset/*.npy /home/icsl/pi_eval_dataset/
+cp multiClassification/pi_eval_dataset/class_names.txt /home/icsl/pi_eval_dataset/
+```
+
+To rebuild the stress set on the Pi:
+
+```bash
+python3 multiClassification/src/capture_stress_data.py
+```
+
+To evaluate the multi-class INT8 model on the stress set:
+
+```bash
+python3 multiClassification/src/evaluate_tflite.py
+```
+
+The evaluation script loads:
+
+```text
+/home/icsl/model/ecg_1dcnn_pruned_int8.tflite
+/home/icsl/pi_eval_dataset/X_stress.npy
+/home/icsl/pi_eval_dataset/y_stress.npy
+```
+
+It prints total samples, model accuracy, total inference time, and average latency per sample.
 
 ## Edge Deployment
 
@@ -200,14 +305,14 @@ pip install tensorflow
 The inference scripts currently use this default model path:
 
 ```text
-/home/icsl/model/ecg_1dcnn_pruned_int8.tflite
+/home/icsl/model/ecg_1dcnn_pruned_int8_binary.tflite
 ```
 
 You can either copy the model to that location:
 
 ```bash
 mkdir -p /home/icsl/model
-cp binaryClassification/model/ecg_1dcnn_pruned_int8.tflite /home/icsl/model/
+cp binaryClassification/model/ecg_1dcnn_pruned_int8_binary.tflite /home/icsl/model/
 ```
 
 or update `MODEL_PATH` in:
@@ -364,6 +469,13 @@ Edge inference dependencies:
 ```text
 numpy
 ai-edge-litert or tflite-runtime or tensorflow
+```
+
+Raspberry Pi multi-class evaluation dependencies:
+
+```text
+numpy
+ai-edge-litert
 ```
 
 CSV-to-WFDB dependencies:
