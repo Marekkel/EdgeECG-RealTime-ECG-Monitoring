@@ -47,6 +47,105 @@ This repository includes:
         └── evaluate_tflite.py
 ```
 
+## Quick Start
+
+### 1. Run the Colab Training Notebooks
+
+Open one of the training notebooks in Google Colab:
+
+```text
+binaryClassification/src/ecg_edge_arrhythmia_starter.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning.ipynb
+multiClassification/src/ecg_multiclass_quant_pruning_da.ipynb
+```
+
+Install the notebook dependencies in Colab:
+
+```bash
+pip install numpy pandas matplotlib scipy scikit-learn wfdb tensorflow tensorflow-model-optimization tf_keras
+```
+
+Run the notebook from top to bottom to train, prune, quantize, evaluate, and export the TFLite model.
+
+### 2. Run Binary TFLite Inference
+
+Prepare the default model location expected by the binary inference scripts:
+
+```bash
+mkdir -p /home/icsl/model
+cp binaryClassification/model/ecg_1dcnn_pruned_int8_binary.tflite /home/icsl/model/
+```
+
+Install an interpreter backend:
+
+```bash
+pip install numpy ai-edge-litert
+```
+
+Run a quick inference sanity check:
+
+```bash
+python3 binaryClassification/src/run_ecg_tflite.py
+```
+
+Benchmark binary model latency:
+
+```bash
+python3 binaryClassification/src/benchmark_ecg_tflite.py
+```
+
+### 3. Run Multi-Class Raspberry Pi Evaluation
+
+Prepare the model and evaluation dataset layout expected by the multi-class scripts:
+
+```bash
+mkdir -p /home/icsl/model /home/icsl/pi_eval_dataset
+cp multiClassification/model/ecg_1dcnn_pruned_int8.tflite /home/icsl/model/
+cp multiClassification/pi_eval_dataset/*.npy /home/icsl/pi_eval_dataset/
+cp multiClassification/pi_eval_dataset/class_names.txt /home/icsl/pi_eval_dataset/
+```
+
+Build or refresh the balanced stress-test set:
+
+```bash
+python3 multiClassification/src/capture_stress_data.py
+```
+
+Evaluate the multi-class INT8 model:
+
+```bash
+python3 multiClassification/src/evaluate_tflite.py
+```
+
+### 4. Stream ECG Data From ESP32
+
+Update WiFi credentials and Raspberry Pi IP in:
+
+```text
+binaryClassification/send_data_to_Pi/send_data_to_Pi.ino
+```
+
+Start the Raspberry Pi UDP receiver:
+
+```bash
+python3 binaryClassification/src/udp_ecg_receiver.py
+```
+
+Then flash the ESP32 sketch. The receiver writes incoming ECG samples to:
+
+```text
+/home/icsl/esp32_wifi_ecg.csv
+```
+
+### 5. Convert Captured ECG CSV to WFDB
+
+```bash
+python3 binaryClassification/src/convert_wifi_csv_to_wfdb.py \
+  --csv_path /home/icsl/esp32_wifi_ecg.csv \
+  --output_dir /home/icsl/synthetic_mitbih \
+  --record_name synthetic_normal
+```
+
 ## Project Overview
 
 The repository now contains three Colab notebooks across two training workflows:
