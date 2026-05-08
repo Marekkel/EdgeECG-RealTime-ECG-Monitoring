@@ -11,7 +11,7 @@ except ImportError:
         Interpreter = tf.lite.Interpreter
 
 
-MODEL_PATH = "/home/icsl/model/ecg_1dcnn_pruned_int8.tflite"
+MODEL_PATH = "/home/icsl/model/ecg_1dcnn_pruned_int8_binary.tflite"
 WINDOW_SIZE = 256
 
 
