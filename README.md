@@ -586,13 +586,6 @@ scipy
 wfdb
 ```
 
-## Future Work
-
-- Train and evaluate on more MIT-BIH records.
-- Use patient-wise train/test splitting to reduce data leakage.
-- Improve the multi-class workflow with class balancing, class weights, and per-class sensitivity analysis.
-- Connect the UDP receiver to a sliding-window inference loop for live arrhythmia alerts.
-- Benchmark latency and power consumption on Raspberry Pi 5, ESP32-S3, or other edge devices.
 
 ## Disclaimer
 
